@@ -1,0 +1,122 @@
+/**
+ * recover.c
+ *
+ * Computer Science 50
+ * Problem Set 4
+ *
+ * Recovers JPEGs from a forensic image.
+ */
+ 
+  
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+  
+  
+   /* write a program that iterates over a copy of CF card,
+    */
+  
+int main(int argc, char* argv[])
+{
+  
+typedef uint8_t Block;
+  
+/*
+STRUCTS:
+create struct to hold first 4 bytes and following 127*4 bytes
+*/
+ 
+typedef struct JPEG_blk
+{ 
+    Block one;
+    Block two;
+    Block three;
+    Block four;     
+    int next_bytes[127];    
+}
+JPEG_blk; 
+  
+     //check if argc = 2 ; command and outfile name.
+if(argc != 1)
+{
+    printf("usage: ./recover\n");
+    return 1;
+}
+  
+// open raw card file
+FILE* card = fopen("card.raw", "r");
+if(card == NULL)
+{
+    printf("Could not open file.\n");
+    return 3;
+}
+  
+// file pointer for jpeg output
+FILE* jpeg_files = NULL;
+  
+// define a constant of type JPEG_blk
+JPEG_blk buff;
+  
+// card has 14.3 MB (20110000 bytes) of images
+// there are 39,258 512byte blocks in this card.
+int n = 39258;
+  
+// just to keep count
+int j = 0;
+  
+// to create new files in jpg
+int jpg_num = 000;
+  
+  
+char title[10];
+  
+// for loop to iterate over all 512blocks inside of card.raw
+for(int i = 0; i < (n - j); i++)
+{  
+    // read 512 bytes from file point indicator and store into buff
+   if (fread(&buff, sizeof(JPEG_blk), 1, card) == 1)
+   {   
+        // if jpeg pattern is exists, open output jpg filegbd 
+        // and write those 512 bytes into that.
+        if((buff.one == 0xff && buff.two == 0xd8 && buff.four == 0xe0) ||( buff.one == 0xff && buff.two == 0xd8
+        && buff.four == 0xe1))
+        {
+            // sprintf to keep track of ###.jpg
+            sprintf(title, "%.3d.jpg", jpg_num);
+            // output file.
+            jpeg_files = fopen(title,"a");
+         
+            fwrite(&buff, sizeof(JPEG_blk), 1, jpeg_files);
+             
+            while (fread(&buff, sizeof(JPEG_blk), 1, card) == 1)
+            { 
+                if((buff.one == 0xff && buff.two == 0xd8 && buff.four == 0xe0) ||( buff.one == 0xff && buff.two == 0xd8
+                && buff.four == 0xe1))
+                {   
+                    //close signifying end of current jpg file 
+                    fclose(jpeg_files);
+             
+                    // increment sprintf counter
+                    jpg_num++;
+             
+                    // move fpi back a block.
+                    fseek(card, -sizeof(JPEG_blk), SEEK_CUR);
+                     
+                    // stop for loop
+                    break;
+                }
+                else
+                {
+                    // continue to write into jpg file as long as no jpg pattern if found.
+                    fwrite(&buff, sizeof(JPEG_blk), 1, jpeg_files);
+                }
+            }
+        }
+     
+    }
+}
+fclose(card);
+fclose(jpeg_files);
+return 0;     
+}
+ 
